@@ -1,0 +1,15 @@
+{
+  "name": "chatgpt-markdown-downloader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension for downloading ChatGPT conversations as Markdown.",
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/background.js && node --check src/markdown.js && node --check src/content.js && node --check src/popup.js && node --check tests/e2e/helpers.js && node --check tests/e2e/fixture.spec.js && node --check tests/e2e/live-chatgpt.spec.js",
+    "test": "playwright test tests/e2e/fixture.spec.js",
+    "test:live": "CHATGPT_LIVE_E2E=1 playwright test tests/e2e/live-chatgpt.spec.js --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

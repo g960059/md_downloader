@@ -1,0 +1,321 @@
+(() => {
+  const BLOCK_TAGS = new Set([
+    "ARTICLE",
+    "ASIDE",
+    "BLOCKQUOTE",
+    "DIV",
+    "FIGURE",
+    "FOOTER",
+    "HEADER",
+    "LI",
+    "MAIN",
+    "OL",
+    "P",
+    "PRE",
+    "SECTION",
+    "TABLE",
+    "UL"
+  ]);
+
+  const SKIP_SELECTORS = [
+    "button",
+    "script",
+    "style",
+    "svg",
+    "textarea",
+    "[aria-hidden='true']",
+    "[data-testid*='copy']",
+    "[data-testid*='feedback']",
+    "[data-testid*='turn-action']",
+    ".sr-only",
+    ".katex-html"
+  ];
+
+  function normalizeText(text) {
+    return text.replace(/\u00a0/g, " ").replace(/[ \t]+\n/g, "\n");
+  }
+
+  function compactMarkdown(markdown) {
+    return normalizeText(markdown)
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
+  }
+
+  function escapePipe(text) {
+    return text.replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+  }
+
+  function sanitizeFilenamePart(value) {
+    const cleaned = normalizeText(value)
+      .replace(/[\\/:*?"<>|#%{}^~[\]`;\n\r\t]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return (cleaned || "chatgpt-conversation").slice(0, 80);
+  }
+
+  function timestampForFilename(date = new Date()) {
+    const pad = (number) => String(number).padStart(2, "0");
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+      "-",
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds())
+    ].join("");
+  }
+
+  function cloneWithoutUi(node) {
+    const clone = node.cloneNode(true);
+    for (const selector of SKIP_SELECTORS) {
+      clone.querySelectorAll(selector).forEach((element) => element.remove());
+    }
+    return clone;
+  }
+
+  function textContentMarkdown(node) {
+    return compactMarkdown(cloneWithoutUi(node).textContent || "");
+  }
+
+  function getLanguage(element) {
+    const code = element.matches("code") ? element : element.querySelector("code");
+    const className = code?.className || element.className || "";
+    const match = String(className).match(/(?:language|lang)-([a-z0-9_+-]+)/i);
+    return match?.[1] || element.getAttribute("data-language") || "";
+  }
+
+  function fenceFor(code) {
+    const longestTicks = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
+    return "`".repeat(Math.max(3, longestTicks + 1));
+  }
+
+  function renderChildren(element, context) {
+    return Array.from(element.childNodes)
+      .map((child) => renderNode(child, context))
+      .join("");
+  }
+
+  function renderList(element, context) {
+    const ordered = element.tagName === "OL";
+    const items = Array.from(element.children).filter((child) => child.tagName === "LI");
+    const start = Number(element.getAttribute("start") || "1");
+    return items
+      .map((item, index) => {
+        const marker = ordered ? `${start + index}. ` : "- ";
+        const itemText = renderChildren(item, { ...context, listDepth: context.listDepth + 1 }).trim();
+        const indent = "  ".repeat(context.listDepth);
+        const nested = itemText.replace(/\n/g, `\n${indent}  `);
+        return `${indent}${marker}${nested}`;
+      })
+      .join("\n");
+  }
+
+  function renderTable(element, context) {
+    const rows = Array.from(element.querySelectorAll("tr")).map((row) =>
+      Array.from(row.children)
+        .filter((cell) => cell.matches("th,td"))
+        .map((cell) => escapePipe(renderChildren(cell, context)))
+    );
+
+    if (!rows.length) return "";
+
+    const width = Math.max(...rows.map((row) => row.length));
+    const normalized = rows.map((row) => {
+      const next = [...row];
+      while (next.length < width) next.push("");
+      return next;
+    });
+    const separator = Array.from({ length: width }, () => "---");
+    const [head, ...body] = normalized;
+    return [head, separator, ...body].map((row) => `| ${row.join(" | ")} |`).join("\n");
+  }
+
+  function renderPre(element) {
+    const codeElement = element.querySelector("code") || element;
+    const code = (codeElement.textContent || "").replace(/\n+$/g, "");
+    const fence = fenceFor(code);
+    const language = getLanguage(codeElement || element);
+    return `\n\n${fence}${language}\n${code}\n${fence}\n\n`;
+  }
+
+  function renderKatex(element) {
+    const annotation = element.querySelector("annotation[encoding='application/x-tex']");
+    const tex = annotation?.textContent?.trim();
+    if (!tex) return "";
+    const display = element.classList.contains("katex-display") || element.closest(".katex-display");
+    return display ? `\n\n$$\n${tex}\n$$\n\n` : `$${tex}$`;
+  }
+
+  function renderElement(element, context) {
+    if (element.matches(SKIP_SELECTORS.join(","))) return "";
+    if (element.matches(".katex, .katex-display")) return renderKatex(element);
+
+    const tag = element.tagName;
+    switch (tag) {
+      case "BR":
+        return "\n";
+      case "HR":
+        return "\n\n---\n\n";
+      case "PRE":
+        return renderPre(element);
+      case "CODE":
+        if (element.closest("pre")) return element.textContent || "";
+        return `\`${normalizeText(element.textContent || "").replace(/`/g, "\\`")}\``;
+      case "A": {
+        const text = compactMarkdown(renderChildren(element, context));
+        const href = element.getAttribute("href");
+        return href && text ? `[${text}](${href})` : text;
+      }
+      case "STRONG":
+      case "B":
+        return `**${compactMarkdown(renderChildren(element, context))}**`;
+      case "EM":
+      case "I":
+        return `*${compactMarkdown(renderChildren(element, context))}*`;
+      case "DEL":
+      case "S":
+        return `~~${compactMarkdown(renderChildren(element, context))}~~`;
+      case "H1":
+      case "H2":
+      case "H3":
+      case "H4":
+      case "H5":
+      case "H6": {
+        const level = Number(tag.slice(1));
+        return `\n\n${"#".repeat(level)} ${compactMarkdown(renderChildren(element, context))}\n\n`;
+      }
+      case "P":
+        return `\n\n${compactMarkdown(renderChildren(element, context))}\n\n`;
+      case "BLOCKQUOTE":
+        return `\n\n${compactMarkdown(renderChildren(element, context))
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n")}\n\n`;
+      case "UL":
+      case "OL":
+        return `\n\n${renderList(element, context)}\n\n`;
+      case "TABLE":
+        return `\n\n${renderTable(element, context)}\n\n`;
+      default: {
+        const rendered = renderChildren(element, context);
+        return BLOCK_TAGS.has(tag) ? `\n${rendered}\n` : rendered;
+      }
+    }
+  }
+
+  function renderNode(node, context = { listDepth: 0 }) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return normalizeText(node.nodeValue || "");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return "";
+    }
+    return renderElement(node, context);
+  }
+
+  function htmlToMarkdown(node) {
+    return compactMarkdown(renderNode(cloneWithoutUi(node)));
+  }
+
+  function getConversationTitle(doc) {
+    const activeSidebarTitle = doc.querySelector("a[data-active] span[dir='auto']")?.textContent;
+    const heading = doc.querySelector("main h1, [data-testid='conversation-title']")?.textContent;
+    const title = activeSidebarTitle || heading || doc.title || "ChatGPT conversation";
+    return normalizeText(title).trim() || "ChatGPT conversation";
+  }
+
+  function roleFromTurn(section) {
+    const roleNode = section.querySelector("[data-message-author-role]");
+    return roleNode?.getAttribute("data-message-author-role") || section.getAttribute("data-turn");
+  }
+
+  function contentNodeFromTurn(section, role) {
+    if (role === "assistant") {
+      return section.querySelector("[data-message-author-role='assistant'] .markdown") ||
+        section.querySelector(".markdown") ||
+        section.querySelector("[data-message-author-role='assistant']");
+    }
+    return section.querySelector("[data-message-author-role='user']") ||
+      section.querySelector(".whitespace-pre-wrap") ||
+      section;
+  }
+
+  function extractTurns(doc) {
+    const sections = Array.from(
+      doc.querySelectorAll("section[data-testid^='conversation-turn-'], section[data-turn]")
+    );
+    const turns = [];
+
+    for (const section of sections) {
+      const role = roleFromTurn(section);
+      if (role !== "user" && role !== "assistant") continue;
+
+      const contentNode = contentNodeFromTurn(section, role);
+      if (!contentNode) continue;
+
+      const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
+      if (markdown) turns.push({ role, markdown });
+    }
+
+    if (turns.length) return turns;
+
+    return Array.from(doc.querySelectorAll("[data-message-author-role]"))
+      .map((node) => {
+        const role = node.getAttribute("data-message-author-role");
+        if (role !== "user" && role !== "assistant") return null;
+        const contentNode = role === "assistant" ? node.querySelector(".markdown") || node : node;
+        const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
+        return markdown ? { role, markdown } : null;
+      })
+      .filter(Boolean);
+  }
+
+  function buildMarkdown({ title, url, turns }) {
+    const lines = [
+      `# ${title}`,
+      "",
+      `Source: ${url}`,
+      `Exported: ${new Date().toISOString()}`,
+      ""
+    ];
+
+    for (const turn of turns) {
+      lines.push(`## ${turn.role === "assistant" ? "Assistant" : "User"}`);
+      lines.push("");
+      lines.push(turn.markdown);
+      lines.push("");
+    }
+
+    return `${compactMarkdown(lines.join("\n"))}\n`;
+  }
+
+  function exportConversation(doc = document) {
+    if (doc.location?.hostname !== "chatgpt.com") {
+      throw new Error("This extension only exports ChatGPT pages.");
+    }
+
+    const turns = extractTurns(doc);
+    if (!turns.length) {
+      throw new Error("No ChatGPT conversation turns were found on this page.");
+    }
+
+    const title = getConversationTitle(doc);
+    const markdown = buildMarkdown({
+      title,
+      url: doc.location.href,
+      turns
+    });
+    const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
+
+    return { filename, markdown, title, turns };
+  }
+
+  window.ChatGPTMarkdownExporter = {
+    exportConversation,
+    htmlToMarkdown,
+    extractTurns,
+    sanitizeFilenamePart
+  };
+})();
