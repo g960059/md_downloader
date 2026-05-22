@@ -45,3 +45,104 @@ test("downloads Markdown from a sanitized ChatGPT conversation fixture via popup
     await context.close();
   }
 });
+
+test("prefers the conversation API payload so non-rendered history is not lost", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("api-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+  const conversationId = "11111111-1111-4111-8111-111111111111";
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/chatgpt-sanitized.html");
+    await context.route(`https://chatgpt.com/c/${conversationId}`, async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+    await context.route(`https://chatgpt.com/backend-api/conversation/${conversationId}`, async (route) => {
+      await route.fulfill({
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({
+          title: "API 完全履歴",
+          current_node: "u2",
+          mapping: {
+            root: { id: "root", parent: null, children: ["u1"] },
+            u1: {
+              id: "u1",
+              parent: "root",
+              children: ["a1"],
+              message: {
+                id: "msg-user-1",
+                create_time: 1779400000,
+                author: { role: "user" },
+                content: {
+                  content_type: "text",
+                  parts: ["DOMには表示されていない最初の質問です。"]
+                }
+              }
+            },
+            a1: {
+              id: "a1",
+              parent: "u1",
+              children: ["u2"],
+              message: {
+                id: "msg-assistant-1",
+                create_time: 1779400010,
+                author: { role: "assistant" },
+                content: {
+                  content_type: "text",
+                  parts: ["APIだけにある回答です。\n\n```python\nprint('api history')\n```"]
+                }
+              }
+            },
+            u2: {
+              id: "u2",
+              parent: "a1",
+              children: [],
+              message: {
+                id: "msg-user-2",
+                create_time: 1779400020,
+                author: { role: "user" },
+                metadata: {
+                  attachments: [{ name: "notes.pdf", mime_type: "application/pdf" }]
+                },
+                content: {
+                  content_type: "multimodal_text",
+                  parts: [
+                    "添付画像も含む質問です。",
+                    {
+                      content_type: "image_asset_pointer",
+                      asset_pointer: "file-service://api-image",
+                      alt_text: "作用の図"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        })
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto(`https://chatgpt.com/c/${conversationId}`);
+
+    const popup = await openPopup(context, extensionId);
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    const download = await downloadPromise;
+    const { text } = await saveDownload(download, testInfo);
+
+    expect(text).toContain("# API 完全履歴");
+    expect(text).toContain("DOMには表示されていない最初の質問です。");
+    expect(text).toContain("APIだけにある回答です。");
+    expect(text).toContain("```python\nprint('api history')\n```");
+    expect(text).toContain("[Image: 作用の図]");
+    expect(text).toContain("Attachments:");
+    expect(text).toContain("- notes.pdf (application/pdf)");
+    expect(text).toContain("<!-- message_id: msg-user-1; created_at:");
+    expect(text).not.toContain("なぜ「作用」を最小にする");
+  } finally {
+    await context.close();
+  }
+});

@@ -2,6 +2,8 @@
 
 Chrome extension that downloads the currently open ChatGPT conversation as a Markdown file.
 
+For authenticated ChatGPT conversation URLs, the extension first exports from ChatGPT's conversation JSON payload so long conversations and non-rendered turns are not lost. If that API is unavailable, it falls back to the visible DOM.
+
 ## Install locally
 
 1. Open `chrome://extensions`.

@@ -38,7 +38,6 @@
   function compactMarkdown(markdown) {
     return normalizeText(markdown)
       .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]{2,}/g, " ")
       .trim();
   }
 
@@ -226,6 +225,11 @@
     return normalizeText(title).trim() || "ChatGPT conversation";
   }
 
+  function conversationIdFromUrl(url) {
+    const match = new URL(url).pathname.match(/^\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    return match?.[1] || "";
+  }
+
   function roleFromTurn(section) {
     const roleNode = section.querySelector("[data-message-author-role]");
     return roleNode?.getAttribute("data-message-author-role") || section.getAttribute("data-turn");
@@ -272,6 +276,115 @@
       .filter(Boolean);
   }
 
+  function plainTextFromParts(parts) {
+    if (!Array.isArray(parts)) return "";
+    return parts
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (!part || typeof part !== "object") return String(part ?? "");
+        if (part.text) return part.text;
+        if (part.content_type === "image_asset_pointer") {
+          const label = part.alt_text || part.asset_pointer || part.file_id || "image";
+          return `[Image: ${label}]`;
+        }
+        return `\n\n\`\`\`json\n${JSON.stringify(part, null, 2)}\n\`\`\`\n\n`;
+      })
+      .join("\n");
+  }
+
+  function contentToMarkdown(content) {
+    if (!content || typeof content !== "object") return "";
+
+    switch (content.content_type) {
+      case "text":
+      case "multimodal_text":
+        return compactMarkdown(plainTextFromParts(content.parts));
+      case "code": {
+        const text = content.text || plainTextFromParts(content.parts);
+        const language = content.language || "";
+        const fence = fenceFor(text);
+        return `${fence}${language}\n${text.replace(/\n+$/g, "")}\n${fence}`;
+      }
+      case "execution_output":
+        return compactMarkdown(content.text || content.result || plainTextFromParts(content.parts));
+      default:
+        if (Array.isArray(content.parts)) {
+          return compactMarkdown(plainTextFromParts(content.parts));
+        }
+        if (typeof content.text === "string") return compactMarkdown(content.text);
+        return `\`\`\`json\n${JSON.stringify(content, null, 2)}\n\`\`\``;
+    }
+  }
+
+  function attachmentMarkdown(message) {
+    const attachments = message?.metadata?.attachments;
+    if (!Array.isArray(attachments) || !attachments.length) return "";
+    const lines = attachments.map((attachment) => {
+      const name = attachment.name || attachment.file_name || attachment.id || "attachment";
+      const mime = attachment.mime_type || attachment.content_type || "unknown type";
+      return `- ${name} (${mime})`;
+    });
+    return `\n\nAttachments:\n${lines.join("\n")}`;
+  }
+
+  function pathFromConversationPayload(payload) {
+    const mapping = payload?.mapping;
+    if (!mapping || typeof mapping !== "object") return [];
+
+    if (payload.current_node && mapping[payload.current_node]) {
+      const path = [];
+      const seen = new Set();
+      let nodeId = payload.current_node;
+      while (nodeId && mapping[nodeId] && !seen.has(nodeId)) {
+        seen.add(nodeId);
+        path.push(mapping[nodeId]);
+        nodeId = mapping[nodeId].parent;
+      }
+      return path.reverse();
+    }
+
+    return Object.values(mapping)
+      .filter((node) => node?.message)
+      .sort((a, b) => (a.message.create_time || 0) - (b.message.create_time || 0));
+  }
+
+  function extractTurnsFromConversationPayload(payload) {
+    return pathFromConversationPayload(payload)
+      .map((node) => {
+        const message = node.message;
+        const role = message?.author?.role;
+        if (role !== "user" && role !== "assistant") return null;
+        const markdown = compactMarkdown(`${contentToMarkdown(message.content)}${attachmentMarkdown(message)}`);
+        if (!markdown) return null;
+        return {
+          role,
+          markdown,
+          messageId: message.id || node.id,
+          createdAt: message.create_time ? new Date(message.create_time * 1000).toISOString() : ""
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function fetchConversationPayload(doc) {
+    const conversationId = conversationIdFromUrl(doc.location.href);
+    if (!conversationId) return null;
+
+    const endpoint = new URL(`/backend-api/conversation/${conversationId}`, doc.location.origin);
+    const response = await fetch(endpoint.href, {
+      credentials: "include",
+      headers: {
+        accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Conversation API returned HTTP ${response.status}.`);
+    }
+
+    return response.json();
+  }
+
   function buildMarkdown({ title, url, turns }) {
     const lines = [
       `# ${title}`,
@@ -283,12 +396,27 @@
 
     for (const turn of turns) {
       lines.push(`## ${turn.role === "assistant" ? "Assistant" : "User"}`);
+      if (turn.createdAt || turn.messageId) {
+        lines.push("");
+        lines.push(`<!-- message_id: ${turn.messageId || "unknown"}${turn.createdAt ? `; created_at: ${turn.createdAt}` : ""} -->`);
+      }
       lines.push("");
       lines.push(turn.markdown);
       lines.push("");
     }
 
     return `${compactMarkdown(lines.join("\n"))}\n`;
+  }
+
+  function resultFromTurns(doc, title, turns) {
+    const markdown = buildMarkdown({
+      title,
+      url: doc.location.href,
+      turns
+    });
+    const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
+
+    return { filename, markdown, title, turns };
   }
 
   function exportConversation(doc = document) {
@@ -301,21 +429,35 @@
       throw new Error("No ChatGPT conversation turns were found on this page.");
     }
 
-    const title = getConversationTitle(doc);
-    const markdown = buildMarkdown({
-      title,
-      url: doc.location.href,
-      turns
-    });
-    const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
+    return resultFromTurns(doc, getConversationTitle(doc), turns);
+  }
 
-    return { filename, markdown, title, turns };
+  async function exportConversationAccurate(doc = document) {
+    if (doc.location?.hostname !== "chatgpt.com") {
+      throw new Error("This extension only exports ChatGPT pages.");
+    }
+
+    try {
+      const payload = await fetchConversationPayload(doc);
+      if (payload) {
+        const turns = extractTurnsFromConversationPayload(payload);
+        if (turns.length) {
+          return resultFromTurns(doc, payload.title || getConversationTitle(doc), turns);
+        }
+      }
+    } catch (_error) {
+      // Fall back to DOM extraction for shared, unauthenticated, or API-blocked pages.
+    }
+
+    return exportConversation(doc);
   }
 
   window.ChatGPTMarkdownExporter = {
     exportConversation,
+    exportConversationAccurate,
     htmlToMarkdown,
     extractTurns,
+    extractTurnsFromConversationPayload,
     sanitizeFilenamePart
   };
 })();

@@ -18,21 +18,21 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== MESSAGE_TYPE) return false;
 
-    try {
+    (async () => {
       const exporter = window.ChatGPTMarkdownExporter;
       if (!exporter) {
         throw new Error("Markdown exporter is not available.");
       }
 
-      const result = exporter.exportConversation(document);
+      const result = await exporter.exportConversationAccurate(document);
       downloadTextFile(result.filename, result.markdown);
       sendResponse({ ok: true, filename: result.filename });
-    } catch (error) {
+    })().catch((error) => {
       sendResponse({
         ok: false,
         error: error?.message || "Unable to export this page."
       });
-    }
+    });
 
     return true;
   });
