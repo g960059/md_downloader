@@ -146,3 +146,38 @@ test("prefers the conversation API payload so non-rendered history is not lost",
     await context.close();
   }
 });
+
+test("downloads a temporary chat without a conversation id using DOM fallback", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("temporary-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/chatgpt-temporary.html");
+    await context.route("https://chatgpt.com/?temporary-chat=true", async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto("https://chatgpt.com/?temporary-chat=true");
+    await expect(page.locator("[data-testid^='conversation-turn-']")).toHaveCount(2);
+
+    const popup = await openPopup(context, extensionId);
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    const download = await downloadPromise;
+    const { filename, text } = await saveDownload(download, testInfo);
+
+    expect(filename).toMatch(/^Temporary Chat - temporary chatでも この内容をMarkdownとして欠落な-\d{8}-\d{6}\.md$/);
+    expect(text).toContain("# Temporary Chat - temporary chatでも この内容をMarkdownとして欠落な");
+    expect(text).toContain("Source: https://chatgpt.com/?temporary-chat=true");
+    expect(text).toContain("temporary chatでも、この内容をMarkdownとして欠落なく保存したいです。");
+    expect(text).toContain("Temporary chat は保存済み会話IDがないため");
+    expect(text).toContain("1. ユーザー発話を保存します。");
+    expect(text).toContain("2. アシスタント発話も保存します。");
+  } finally {
+    await context.close();
+  }
+});

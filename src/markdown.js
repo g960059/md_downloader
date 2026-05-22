@@ -225,38 +225,57 @@
     return normalizeText(title).trim() || "ChatGPT conversation";
   }
 
+  function titleFromTurns(doc, turns) {
+    const existingTitle = getConversationTitle(doc);
+    if (
+      existingTitle &&
+      !/^chatgpt(?: conversation)?$/i.test(existingTitle) &&
+      !/ready when you are/i.test(existingTitle)
+    ) {
+      return existingTitle;
+    }
+
+    const firstUser = turns.find((turn) => turn.role === "user")?.markdown || "";
+    const derived = compactMarkdown(firstUser)
+      .replace(/[#*_`~>\[\]().!?,:;'"、。！？「」『』（）【】]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 36);
+    return derived ? `Temporary Chat - ${derived}` : "Temporary Chat";
+  }
+
   function conversationIdFromUrl(url) {
     const match = new URL(url).pathname.match(/^\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
     return match?.[1] || "";
   }
 
-  function roleFromTurn(section) {
-    const roleNode = section.querySelector("[data-message-author-role]");
-    return roleNode?.getAttribute("data-message-author-role") || section.getAttribute("data-turn");
+  function roleFromTurn(turnElement) {
+    const roleNode = turnElement.querySelector("[data-message-author-role]");
+    return roleNode?.getAttribute("data-message-author-role") || turnElement.getAttribute("data-turn");
   }
 
-  function contentNodeFromTurn(section, role) {
+  function contentNodeFromTurn(turnElement, role) {
     if (role === "assistant") {
-      return section.querySelector("[data-message-author-role='assistant'] .markdown") ||
-        section.querySelector(".markdown") ||
-        section.querySelector("[data-message-author-role='assistant']");
+      return turnElement.querySelector("[data-message-author-role='assistant'] .markdown") ||
+        turnElement.querySelector(".markdown") ||
+        turnElement.querySelector("[data-message-author-role='assistant']");
     }
-    return section.querySelector("[data-message-author-role='user']") ||
-      section.querySelector(".whitespace-pre-wrap") ||
-      section;
+    return turnElement.querySelector("[data-message-author-role='user']") ||
+      turnElement.querySelector(".whitespace-pre-wrap") ||
+      turnElement;
   }
 
   function extractTurns(doc) {
-    const sections = Array.from(
-      doc.querySelectorAll("section[data-testid^='conversation-turn-'], section[data-turn]")
+    const turnElements = Array.from(
+      doc.querySelectorAll("[data-testid^='conversation-turn-'], [data-turn]")
     );
     const turns = [];
 
-    for (const section of sections) {
-      const role = roleFromTurn(section);
+    for (const turnElement of turnElements) {
+      const role = roleFromTurn(turnElement);
       if (role !== "user" && role !== "assistant") continue;
 
-      const contentNode = contentNodeFromTurn(section, role);
+      const contentNode = contentNodeFromTurn(turnElement, role);
       if (!contentNode) continue;
 
       const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
@@ -429,7 +448,7 @@
       throw new Error("No ChatGPT conversation turns were found on this page.");
     }
 
-    return resultFromTurns(doc, getConversationTitle(doc), turns);
+    return resultFromTurns(doc, titleFromTurns(doc, turns), turns);
   }
 
   async function exportConversationAccurate(doc = document) {
