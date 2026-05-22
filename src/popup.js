@@ -40,6 +40,42 @@
     });
   }
 
+  async function injectContentScripts(tabId) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/markdown.js", "src/content.js"]
+    });
+  }
+
+  function shouldInjectAndRetry(errorOrResult) {
+    const message =
+      typeof errorOrResult === "string"
+        ? errorOrResult
+        : errorOrResult?.message || errorOrResult?.error || "";
+    return /Receiving end does not exist|Could not establish connection|Markdown exporter is not available/i.test(
+      message
+    );
+  }
+
+  async function exportFromTab(tabId) {
+    try {
+      const result = await sendExportMessage(tabId);
+      if (result?.ok) return result;
+      if (!shouldInjectAndRetry(result)) {
+        throw new Error(result?.error || "Could not export this conversation.");
+      }
+    } catch (error) {
+      if (!shouldInjectAndRetry(error)) throw error;
+    }
+
+    await injectContentScripts(tabId);
+    const retryResult = await sendExportMessage(tabId);
+    if (!retryResult?.ok) {
+      throw new Error(retryResult?.error || "Could not export this conversation.");
+    }
+    return retryResult;
+  }
+
   button.addEventListener("click", async () => {
     button.disabled = true;
     setStatus("Preparing Markdown...");
@@ -50,10 +86,7 @@
         throw new Error("No ChatGPT conversation tab found.");
       }
 
-      const result = await sendExportMessage(tab.id);
-      if (!result?.ok) {
-        throw new Error(result?.error || "Could not export this conversation.");
-      }
+      const result = await exportFromTab(tab.id);
 
       setStatus(`Downloaded ${result.filename}`);
     } catch (error) {

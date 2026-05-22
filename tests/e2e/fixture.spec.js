@@ -183,3 +183,36 @@ test("downloads a temporary chat without a conversation id using DOM fallback", 
     await context.close();
   }
 });
+
+test("injects scripts on demand when an existing ChatGPT tab has no exporter", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("inject-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/chatgpt-sanitized.html");
+    await context.route("https://chatgpt.com/c/existing-tab", async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto("https://chatgpt.com/c/existing-tab");
+    await page.evaluate(() => {
+      delete window.ChatGPTMarkdownExporter;
+    });
+
+    const popup = await openPopup(context, extensionId);
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    const download = await downloadPromise;
+    const { text } = await saveDownload(download, testInfo);
+
+    expect(text).toContain("# 古典力学と作用");
+    expect(text).toContain("同じターン内の追加回答も保存します。");
+    await expect(popup.getByRole("status")).toContainText("Downloaded");
+  } finally {
+    await context.close();
+  }
+});

@@ -1,4 +1,7 @@
 (() => {
+  if (window.ChatGPTMarkdownDownloaderContentInstalled) return;
+  window.ChatGPTMarkdownDownloaderContentInstalled = true;
+
   const MESSAGE_TYPE = "CHATGPT_MARKDOWN_DOWNLOAD";
 
   function downloadTextFile(filename, text) {

@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Download the current ChatGPT conversation as Markdown.",
   "permissions": [
+    "scripting",
     "tabs"
   ],
   "host_permissions": [
