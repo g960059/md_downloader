@@ -37,6 +37,8 @@ test("downloads Markdown from a sanitized ChatGPT conversation fixture via popup
     expect(text).toContain("const action = integrate(lagrangian);");
     expect(text).toContain("| 記号 | 意味 |");
     expect(text).toContain("[参考](https://example.com/lagrangian)");
+    expect(text).toContain("同じターン内の追加回答も保存します。");
+    expect((text.match(/## Assistant/g) || []).length).toBe(2);
     expect(text).not.toContain("チャットを検索");
     expect(text).not.toContain("新しいチャット");
     expect(text).not.toContain("コピーする");

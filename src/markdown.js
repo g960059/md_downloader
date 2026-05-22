@@ -249,49 +249,43 @@
     return match?.[1] || "";
   }
 
-  function roleFromTurn(turnElement) {
-    const roleNode = turnElement.querySelector("[data-message-author-role]");
-    return roleNode?.getAttribute("data-message-author-role") || turnElement.getAttribute("data-turn");
+  function contentNodeFromMessageNode(messageNode, role) {
+    if (role === "assistant") {
+      return messageNode.querySelector(".markdown") || messageNode;
+    }
+    return messageNode.querySelector(".whitespace-pre-wrap") || messageNode;
   }
 
-  function contentNodeFromTurn(turnElement, role) {
-    if (role === "assistant") {
-      return turnElement.querySelector("[data-message-author-role='assistant'] .markdown") ||
-        turnElement.querySelector(".markdown") ||
-        turnElement.querySelector("[data-message-author-role='assistant']");
-    }
-    return turnElement.querySelector("[data-message-author-role='user']") ||
-      turnElement.querySelector(".whitespace-pre-wrap") ||
-      turnElement;
+  function turnElementToTurn(turnElement) {
+    const role = turnElement.getAttribute("data-turn");
+    if (role !== "user" && role !== "assistant") return null;
+
+    const contentNode =
+      role === "assistant"
+        ? turnElement.querySelector(".markdown") || turnElement
+        : turnElement.querySelector(".whitespace-pre-wrap") || turnElement;
+    const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
+    return markdown ? { role, markdown } : null;
   }
 
   function extractTurns(doc) {
-    const turnElements = Array.from(
-      doc.querySelectorAll("[data-testid^='conversation-turn-'], [data-turn]")
-    );
-    const turns = [];
-
-    for (const turnElement of turnElements) {
-      const role = roleFromTurn(turnElement);
-      if (role !== "user" && role !== "assistant") continue;
-
-      const contentNode = contentNodeFromTurn(turnElement, role);
-      if (!contentNode) continue;
-
-      const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
-      if (markdown) turns.push({ role, markdown });
-    }
-
-    if (turns.length) return turns;
-
-    return Array.from(doc.querySelectorAll("[data-message-author-role]"))
-      .map((node) => {
-        const role = node.getAttribute("data-message-author-role");
+    const messageTurns = Array.from(doc.querySelectorAll("[data-message-author-role]"))
+      .map((messageNode) => {
+        const role = messageNode.getAttribute("data-message-author-role");
         if (role !== "user" && role !== "assistant") return null;
-        const contentNode = role === "assistant" ? node.querySelector(".markdown") || node : node;
+
+        const contentNode = contentNodeFromMessageNode(messageNode, role);
+        if (!contentNode) return null;
+
         const markdown = role === "assistant" ? htmlToMarkdown(contentNode) : textContentMarkdown(contentNode);
         return markdown ? { role, markdown } : null;
       })
+      .filter(Boolean);
+
+    if (messageTurns.length) return messageTurns;
+
+    return Array.from(doc.querySelectorAll("[data-testid^='conversation-turn-'], [data-turn]"))
+      .map(turnElementToTurn)
       .filter(Boolean);
   }
 
