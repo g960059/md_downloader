@@ -27,6 +27,9 @@
     "[data-testid*='copy']",
     "[data-testid*='feedback']",
     "[data-testid*='turn-action']",
+    "[data-testid^='action-bar']",
+    "[data-cds='Button']",
+    "[class*='font-small'][class*='p-3.5'][class*='pb-0']",
     ".sr-only",
     ".katex-html"
   ];
@@ -225,6 +228,19 @@
     return normalizeText(title).trim() || "ChatGPT conversation";
   }
 
+  function getClaudeConversationTitle(doc, turns) {
+    const title = normalizeText(doc.title || "").trim();
+    if (title && !/^claude$/i.test(title)) return title;
+
+    const firstUser = turns.find((turn) => turn.role === "user")?.markdown || "";
+    const derived = compactMarkdown(firstUser)
+      .replace(/[#*_`~>\[\]().!?,:;'"、。！？「」『』（）【】]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 42);
+    return derived ? `Claude Chat - ${derived}` : "Claude Chat";
+  }
+
   function titleFromTurns(doc, turns) {
     const existingTitle = getConversationTitle(doc);
     if (
@@ -287,6 +303,77 @@
     return Array.from(doc.querySelectorAll("[data-testid^='conversation-turn-'], [data-turn]"))
       .map(turnElementToTurn)
       .filter(Boolean);
+  }
+
+  function topLevelMarkdownBlocks(container) {
+    const blocks = Array.from(container.querySelectorAll(".standard-markdown, .progressive-markdown"));
+    return blocks.filter((block) => !blocks.some((other) => other !== block && other.contains(block)));
+  }
+
+  function claudeAttachmentMarkdown(userMessageNode) {
+    const messageBlock = findClaudeUserMessageBlock(userMessageNode);
+    if (!messageBlock) return "";
+
+    const attachments = Array.from(messageBlock.querySelectorAll('[data-testid="file-thumbnail"] button'))
+      .map((button) => {
+        const label = normalizeText(button.getAttribute("aria-label") || "Attachment").trim();
+        const preview = compactMarkdown(button.querySelector("p")?.textContent || "");
+        return preview ? `- ${label}: ${preview}` : `- ${label}`;
+      })
+      .filter(Boolean);
+
+    return attachments.length ? `Attachments:\n${attachments.join("\n")}\n\n` : "";
+  }
+
+  function findClaudeUserMessageBlock(userMessageNode) {
+    let fallback = userMessageNode.closest("[data-test-render-count]") || userMessageNode.parentElement;
+    for (let node = userMessageNode.parentElement; node; node = node.parentElement) {
+      if (node.querySelector?.('[data-testid="file-thumbnail"]')) return node;
+      if (node.hasAttribute?.("data-test-render-count")) {
+        fallback = node;
+        break;
+      }
+    }
+    return fallback;
+  }
+
+  function claudeUserTurnFromNode(node) {
+    const body = htmlToMarkdown(node);
+    const attachments = claudeAttachmentMarkdown(node);
+    const markdown = compactMarkdown(`${attachments}${body}`);
+    return markdown ? { role: "user", markdown } : null;
+  }
+
+  function claudeAssistantTurnFromNode(node) {
+    const blocks = topLevelMarkdownBlocks(node);
+    const markdown = compactMarkdown(
+      (blocks.length ? blocks : [node])
+        .map((block) => htmlToMarkdown(block))
+        .filter(Boolean)
+        .join("\n\n")
+    );
+    return markdown ? { role: "assistant", markdown } : null;
+  }
+
+  function extractClaudeTurns(doc) {
+    const candidates = [
+      ...Array.from(doc.querySelectorAll('[data-testid="user-message"]')).map((node) => ({
+        node,
+        turn: claudeUserTurnFromNode(node)
+      })),
+      ...Array.from(doc.querySelectorAll(".font-claude-response")).map((node) => ({
+        node,
+        turn: claudeAssistantTurnFromNode(node)
+      }))
+    ];
+
+    return candidates
+      .filter((candidate) => candidate.turn)
+      .sort((a, b) => {
+        if (a.node === b.node) return 0;
+        return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+      })
+      .map((candidate) => candidate.turn);
   }
 
   function plainTextFromParts(parts) {
@@ -432,7 +519,7 @@
     return { filename, markdown, title, turns };
   }
 
-  function exportConversation(doc = document) {
+  function exportChatGptConversation(doc = document) {
     if (doc.location?.hostname !== "chatgpt.com") {
       throw new Error("This extension only exports ChatGPT pages.");
     }
@@ -445,9 +532,33 @@
     return resultFromTurns(doc, titleFromTurns(doc, turns), turns);
   }
 
+  function exportClaudeConversation(doc = document) {
+    if (doc.location?.hostname !== "claude.ai") {
+      throw new Error("This extension only exports Claude pages.");
+    }
+
+    const turns = extractClaudeTurns(doc);
+    if (!turns.length) {
+      throw new Error("No Claude conversation turns were found on this page.");
+    }
+
+    return resultFromTurns(doc, getClaudeConversationTitle(doc, turns), turns);
+  }
+
+  function exportConversation(doc = document) {
+    if (doc.location?.hostname === "claude.ai") {
+      return exportClaudeConversation(doc);
+    }
+    return exportChatGptConversation(doc);
+  }
+
   async function exportConversationAccurate(doc = document) {
+    if (doc.location?.hostname === "claude.ai") {
+      return exportClaudeConversation(doc);
+    }
+
     if (doc.location?.hostname !== "chatgpt.com") {
-      throw new Error("This extension only exports ChatGPT pages.");
+      throw new Error("This extension only exports ChatGPT or Claude pages.");
     }
 
     try {
@@ -462,7 +573,7 @@
       // Fall back to DOM extraction for shared, unauthenticated, or API-blocked pages.
     }
 
-    return exportConversation(doc);
+    return exportChatGptConversation(doc);
   }
 
   window.ChatGPTMarkdownExporter = {
@@ -470,6 +581,7 @@
     exportConversationAccurate,
     htmlToMarkdown,
     extractTurns,
+    extractClaudeTurns,
     extractTurnsFromConversationPayload,
     sanitizeFilenamePart
   };

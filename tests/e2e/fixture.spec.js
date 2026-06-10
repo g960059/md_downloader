@@ -216,3 +216,47 @@ test("injects scripts on demand when an existing ChatGPT tab has no exporter", a
     await context.close();
   }
 });
+
+test("downloads Markdown from a sanitized Claude conversation fixture via popup", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("claude-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/claude-sanitized.html");
+    await context.route("https://claude.ai/chat/fixture", async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto("https://claude.ai/chat/fixture");
+    await expect(page.locator('[data-testid="user-message"]')).toHaveCount(1);
+    await expect(page.locator(".font-claude-response")).toHaveCount(1);
+
+    const popup = await openPopup(context, extensionId);
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    const download = await downloadPromise;
+    const { filename, text } = await saveDownload(download, testInfo);
+
+    expect(filename).toMatch(/^Claudeモデル改善相談-\d{8}-\d{6}\.md$/);
+    expect(text).toContain("# Claudeモデル改善相談");
+    expect(text).toContain("Source: https://claude.ai/chat/fixture");
+    expect(text).toContain("## User");
+    expect(text).toContain("Attachments:");
+    expect(text).toContain("Pasted Text, pasted, 182行");
+    expect(text).toContain("[https://github.com/g960059/0DSimDemo](https://github.com/g960059/0DSimDemo)");
+    expect(text).toContain("## Assistant");
+    expect(text).toContain("GitHubのレポを実際に確認しながら");
+    expect(text).toContain("### 1. 根本原因");
+    expect(text).toContain("**period-2** を検出します。");
+    expect(text).toContain("```ts");
+    expect(text).toContain("const Kd = Kd0 * Math.exp(-ldaArg);");
+    expect(text).not.toContain("コピー");
+    await expect(popup.getByRole("status")).toContainText("Downloaded");
+  } finally {
+    await context.close();
+  }
+});

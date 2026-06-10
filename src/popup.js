@@ -26,12 +26,19 @@
     }
 
     const [activeTab] = await queryTabs({ active: true, currentWindow: true });
-    if (activeTab?.url?.startsWith("https://chatgpt.com/")) {
+    if (isSupportedChatUrl(activeTab?.url)) {
       return activeTab;
     }
 
-    const chatgptTabs = await queryTabs({ url: "https://chatgpt.com/*" });
-    return chatgptTabs[0] ?? null;
+    const [chatgptTabs, claudeTabs] = await Promise.all([
+      queryTabs({ url: "https://chatgpt.com/*" }),
+      queryTabs({ url: "https://claude.ai/*" })
+    ]);
+    return chatgptTabs[0] ?? claudeTabs[0] ?? null;
+  }
+
+  function isSupportedChatUrl(url) {
+    return url?.startsWith("https://chatgpt.com/") || url?.startsWith("https://claude.ai/");
   }
 
   async function sendExportMessage(tabId) {
@@ -83,7 +90,7 @@
     try {
       const tab = await findTargetTab();
       if (!tab?.id) {
-        throw new Error("No ChatGPT conversation tab found.");
+        throw new Error("No ChatGPT or Claude conversation tab found.");
       }
 
       const result = await exportFromTab(tab.id);

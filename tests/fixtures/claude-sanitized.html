@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja-JP">
+  <head>
+    <meta charset="utf-8">
+    <title>Claudeモデル改善相談</title>
+  </head>
+  <body>
+    <main>
+      <div data-test-render-count="2">
+        <div class="mb-1 mt-6 group">
+          <div data-testid="file-thumbnail">
+            <button aria-label="Pasted Text, pasted, 182行">
+              <p>低preload側の Starling 曲線に不自然な dip / re-rise が出ています。</p>
+            </button>
+          </div>
+          <div data-testid="user-message">
+            <p class="whitespace-pre-wrap break-words">下記のレポで開発を進めています。<a href="https://github.com/g960059/0DSimDemo">https://github.com/g960059/0DSimDemo</a></p>
+          </div>
+          <button data-testid="action-bar-copy">コピー</button>
+        </div>
+      </div>
+      <div data-test-render-count="1">
+        <div class="font-claude-response">
+          <div class="standard-markdown">
+            <p>GitHubのレポを実際に確認しながら、数理モデルとして根治的に検討します。</p>
+          </div>
+          <div class="standard-markdown">
+            <h3>1. 根本原因</h3>
+            <p><code>betaLambda</code> が低preloadでループゲインを上げています。</p>
+            <ul>
+              <li><strong>period-2</strong> を検出します。</li>
+              <li>周期平均でCOを評価します。</li>
+            </ul>
+            <pre><code class="language-ts">const ldaArg = Math.tanh(lambda - 1);
+const Kd = Kd0 * Math.exp(-ldaArg);</code></pre>
+          </div>
+          <button data-testid="action-bar-copy">コピー</button>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

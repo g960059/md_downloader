@@ -1,17 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Markdown Downloader",
+  "name": "Chat Markdown Downloader",
   "version": "0.1.0",
-  "description": "Download the current ChatGPT conversation as Markdown.",
+  "description": "Download the current ChatGPT or Claude conversation as Markdown.",
   "permissions": [
     "scripting",
     "tabs"
   ],
   "host_permissions": [
+    "https://claude.ai/*",
     "https://chatgpt.com/*"
   ],
   "action": {
-    "default_title": "Download ChatGPT Markdown",
+    "default_title": "Download Chat Markdown",
     "default_popup": "src/popup.html"
   },
   "background": {
@@ -20,6 +21,7 @@
   "content_scripts": [
     {
       "matches": [
+        "https://claude.ai/*",
         "https://chatgpt.com/*"
       ],
       "js": [
