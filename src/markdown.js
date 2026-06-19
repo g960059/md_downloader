@@ -19,7 +19,7 @@
   ]);
 
   const SKIP_SELECTORS = [
-    "button",
+    "button:not(.o-tableOfContents__link)",
     "script",
     "style",
     "svg",
@@ -169,6 +169,10 @@
         const src = element.currentSrc || element.src || element.getAttribute("src") || element.getAttribute("data-src");
         const alt = normalizeText(element.getAttribute("alt") || "").trim();
         return src ? `![${alt}](${src})` : alt;
+      }
+      case "NWC-FORMULA": {
+        const tex = normalizeText(element.textContent || "").trim();
+        return tex ? `$${tex}$` : "";
       }
       case "PRE":
         return renderPre(element);

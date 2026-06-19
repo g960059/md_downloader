@@ -289,7 +289,9 @@ test("downloads Markdown from a sanitized note.com article fixture via popup", a
     expect(text).toContain("Source: https://note.com/hideki_mizunaga/n/fixture");
     expect(text).toContain("Author: はじめの一歩　物理探査学入門");
     expect(text).toContain("Published: 2021-11-07T16:28:48.000+09:00");
+    expect(text).toContain("1. フーリエ変換");
     expect(text).toContain("**時系列データ**");
+    expect(text).toContain("$\\omega$");
     expect(text).toContain("## フーリエ変換");
     expect(text).toContain("[参考リンク](https://example.com/fourier)");
     expect(text).toContain("[![画像1](https://assets.st-note.com/production/uploads/images/example.png)](https://assets.st-note.com/production/uploads/images/example.png)");

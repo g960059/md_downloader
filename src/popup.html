@@ -3,14 +3,28 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Chat Markdown Downloader</title>
+    <title>Markdown Downloader</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
     <main>
-      <h1>Chat Markdown</h1>
-      <button id="download" type="button">Download Markdown</button>
-      <p id="status" role="status" aria-live="polite">Open a ChatGPT or Claude conversation, then download.</p>
+      <header class="app-header">
+        <img src="../icons/icon32.png" width="32" height="32" alt="">
+        <div>
+          <h1>Markdown Downloader</h1>
+          <p id="status" role="status" aria-live="polite">Checking current tab...</p>
+        </div>
+      </header>
+
+      <section class="target" aria-label="Selected page">
+        <div class="target__topline">
+          <span id="target-kind" class="target__kind">Not ready</span>
+          <span id="target-host" class="target__host"></span>
+        </div>
+        <p id="target-title" class="target__title">No supported page selected</p>
+      </section>
+
+      <button id="download" type="button" disabled>Download Markdown</button>
     </main>
     <script src="popup.js"></script>
   </body>
