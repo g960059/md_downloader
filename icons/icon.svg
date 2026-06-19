@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Markdown downloader icon">
+  <defs>
+    <linearGradient id="background" x1="18" y1="14" x2="112" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#11b8a6"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="sheet" x1="36" y1="24" x2="92" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8f2ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="url(#background)"/>
+  <path d="M34 22h44l22 22v61a9 9 0 0 1-9 9H34a9 9 0 0 1-9-9V31a9 9 0 0 1 9-9z" fill="url(#sheet)"/>
+  <path d="M78 22v18a6 6 0 0 0 6 6h16z" fill="#bfd7ff"/>
+  <path d="M43 50h12l9 14 9-14h12v32H74V66l-7 11h-6l-7-11v16H43z" fill="#17406f"/>
+  <path d="M63 88V66h12v22h10L69 105 53 88z" fill="#0f766e"/>
+</svg>
