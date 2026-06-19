@@ -30,15 +30,28 @@
       return activeTab;
     }
 
-    const [chatgptTabs, claudeTabs] = await Promise.all([
+    const [chatgptTabs, claudeTabs, noteTabs, noteSubdomainTabs] = await Promise.all([
       queryTabs({ url: "https://chatgpt.com/*" }),
-      queryTabs({ url: "https://claude.ai/*" })
+      queryTabs({ url: "https://claude.ai/*" }),
+      queryTabs({ url: "https://note.com/*" }),
+      queryTabs({ url: "https://*.note.com/*" })
     ]);
-    return chatgptTabs[0] ?? claudeTabs[0] ?? null;
+    return chatgptTabs[0] ?? claudeTabs[0] ?? noteTabs[0] ?? noteSubdomainTabs[0] ?? null;
   }
 
   function isSupportedChatUrl(url) {
-    return url?.startsWith("https://chatgpt.com/") || url?.startsWith("https://claude.ai/");
+    try {
+      const parsed = new URL(url);
+      return (
+        parsed.protocol === "https:" &&
+        (parsed.hostname === "chatgpt.com" ||
+          parsed.hostname === "claude.ai" ||
+          parsed.hostname === "note.com" ||
+          parsed.hostname.endsWith(".note.com"))
+      );
+    } catch (_error) {
+      return false;
+    }
   }
 
   async function sendExportMessage(tabId) {
@@ -90,7 +103,7 @@
     try {
       const tab = await findTargetTab();
       if (!tab?.id) {
-        throw new Error("No ChatGPT or Claude conversation tab found.");
+        throw new Error("No ChatGPT, Claude, or note.com tab found.");
       }
 
       const result = await exportFromTab(tab.id);

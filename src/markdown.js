@@ -4,6 +4,7 @@
     "ASIDE",
     "BLOCKQUOTE",
     "DIV",
+    "FIGCAPTION",
     "FIGURE",
     "FOOTER",
     "HEADER",
@@ -42,6 +43,10 @@
     return normalizeText(markdown)
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+  }
+
+  function metaContent(doc, selector) {
+    return normalizeText(doc.querySelector(selector)?.getAttribute("content") || "").trim();
   }
 
   function escapePipe(text) {
@@ -160,6 +165,11 @@
         return "\n";
       case "HR":
         return "\n\n---\n\n";
+      case "IMG": {
+        const src = element.currentSrc || element.src || element.getAttribute("src") || element.getAttribute("data-src");
+        const alt = normalizeText(element.getAttribute("alt") || "").trim();
+        return src ? `![${alt}](${src})` : alt;
+      }
       case "PRE":
         return renderPre(element);
       case "CODE":
@@ -226,6 +236,45 @@
     const heading = doc.querySelector("main h1, [data-testid='conversation-title']")?.textContent;
     const title = activeSidebarTitle || heading || doc.title || "ChatGPT conversation";
     return normalizeText(title).trim() || "ChatGPT conversation";
+  }
+
+  function isNoteHost(hostname) {
+    return hostname === "note.com" || hostname.endsWith(".note.com");
+  }
+
+  function getNoteArticleTitle(doc) {
+    const title =
+      doc.querySelector(".o-noteContentHeader__title")?.textContent ||
+      doc.querySelector("article h1, main h1")?.textContent ||
+      metaContent(doc, "meta[property='og:title']") ||
+      doc.title ||
+      "note article";
+    return normalizeText(title).replace(/\s*\|\s*note(?:（ノート）)?\s*$/i, "").trim() || "note article";
+  }
+
+  function getNoteAuthor(doc) {
+    const header = doc.querySelector(".o-noteContentHeader");
+    const author =
+      header?.querySelector(".o-noteContentHeader__creatorInfo a:not([aria-hidden='true'])")?.textContent ||
+      header?.querySelector("a[href*='note.com/']:not([aria-hidden='true'])")?.textContent ||
+      metaContent(doc, "meta[name='author']");
+    return normalizeText(author || "").trim();
+  }
+
+  function getNotePublishedAt(doc) {
+    const datetime =
+      doc.querySelector(".o-noteContentHeader time[datetime]")?.getAttribute("datetime") ||
+      doc.querySelector("article time[datetime], main time[datetime]")?.getAttribute("datetime") ||
+      metaContent(doc, "meta[property='article:published_time']");
+    return normalizeText(datetime || "").trim();
+  }
+
+  function getNoteArticleBody(doc) {
+    return (
+      doc.querySelector(".note-common-styles__textnote-body") ||
+      doc.querySelector("[data-name='body']") ||
+      doc.querySelector("article")
+    );
   }
 
   function getClaudeConversationTitle(doc, turns) {
@@ -519,6 +568,49 @@
     return { filename, markdown, title, turns };
   }
 
+  function buildNoteMarkdown({ title, url, author, publishedAt, body }) {
+    const lines = [
+      `# ${title}`,
+      "",
+      `Source: ${url}`,
+      `Exported: ${new Date().toISOString()}`
+    ];
+
+    if (author) lines.push(`Author: ${author}`);
+    if (publishedAt) lines.push(`Published: ${publishedAt}`);
+
+    lines.push("", body);
+    return `${compactMarkdown(lines.join("\n"))}\n`;
+  }
+
+  function exportNoteArticle(doc = document) {
+    if (!isNoteHost(doc.location?.hostname || "")) {
+      throw new Error("This extension only exports note.com article pages.");
+    }
+
+    const bodyNode = getNoteArticleBody(doc);
+    if (!bodyNode) {
+      throw new Error("No note.com article body was found on this page.");
+    }
+
+    const body = htmlToMarkdown(bodyNode);
+    if (!body) {
+      throw new Error("No note.com article content was found on this page.");
+    }
+
+    const title = getNoteArticleTitle(doc);
+    const markdown = buildNoteMarkdown({
+      title,
+      url: doc.location.href,
+      author: getNoteAuthor(doc),
+      publishedAt: getNotePublishedAt(doc),
+      body
+    });
+    const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
+
+    return { filename, markdown, title, body };
+  }
+
   function exportChatGptConversation(doc = document) {
     if (doc.location?.hostname !== "chatgpt.com") {
       throw new Error("This extension only exports ChatGPT pages.");
@@ -546,6 +638,9 @@
   }
 
   function exportConversation(doc = document) {
+    if (isNoteHost(doc.location?.hostname || "")) {
+      return exportNoteArticle(doc);
+    }
     if (doc.location?.hostname === "claude.ai") {
       return exportClaudeConversation(doc);
     }
@@ -553,12 +648,16 @@
   }
 
   async function exportConversationAccurate(doc = document) {
+    if (isNoteHost(doc.location?.hostname || "")) {
+      return exportNoteArticle(doc);
+    }
+
     if (doc.location?.hostname === "claude.ai") {
       return exportClaudeConversation(doc);
     }
 
     if (doc.location?.hostname !== "chatgpt.com") {
-      throw new Error("This extension only exports ChatGPT or Claude pages.");
+      throw new Error("This extension only exports ChatGPT, Claude, or note.com pages.");
     }
 
     try {
@@ -579,6 +678,7 @@
   window.ChatGPTMarkdownExporter = {
     exportConversation,
     exportConversationAccurate,
+    exportNoteArticle,
     htmlToMarkdown,
     extractTurns,
     extractClaudeTurns,

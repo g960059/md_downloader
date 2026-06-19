@@ -260,3 +260,43 @@ test("downloads Markdown from a sanitized Claude conversation fixture via popup"
     await context.close();
   }
 });
+
+test("downloads Markdown from a sanitized note.com article fixture via popup", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("note-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/note-sanitized.html");
+    await context.route("https://note.com/hideki_mizunaga/n/fixture", async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto("https://note.com/hideki_mizunaga/n/fixture");
+    await expect(page.locator(".note-common-styles__textnote-body")).toHaveCount(1);
+
+    const popup = await openPopup(context, extensionId);
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    const download = await downloadPromise;
+    const { filename, text } = await saveDownload(download, testInfo);
+
+    expect(filename).toMatch(/^フーリエ変換とラプラス変換-\d{8}-\d{6}\.md$/);
+    expect(text).toContain("# フーリエ変換とラプラス変換");
+    expect(text).toContain("Source: https://note.com/hideki_mizunaga/n/fixture");
+    expect(text).toContain("Author: はじめの一歩　物理探査学入門");
+    expect(text).toContain("Published: 2021-11-07T16:28:48.000+09:00");
+    expect(text).toContain("**時系列データ**");
+    expect(text).toContain("## フーリエ変換");
+    expect(text).toContain("[参考リンク](https://example.com/fourier)");
+    expect(text).toContain("[![画像1](https://assets.st-note.com/production/uploads/images/example.png)](https://assets.st-note.com/production/uploads/images/example.png)");
+    expect(text).not.toContain("フォローする");
+    expect(text).not.toContain("スキ");
+    await expect(popup.getByRole("status")).toContainText("Downloaded");
+  } finally {
+    await context.close();
+  }
+});
