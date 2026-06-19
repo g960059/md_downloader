@@ -48,7 +48,7 @@ test("downloads Markdown from the live ChatGPT conversation page via popup", asy
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { text } = await saveDownload(download, testInfo);
 

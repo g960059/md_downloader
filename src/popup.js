@@ -1,26 +1,29 @@
 (() => {
+  const DEFAULT_BUTTON_TEXT = "Markdownを保存";
   const button = document.getElementById("download");
   const status = document.getElementById("status");
   const targetKind = document.getElementById("target-kind");
-  const targetHost = document.getElementById("target-host");
   const targetTitle = document.getElementById("target-title");
   let selectedTab = null;
+  let resetButtonTimer = null;
 
-  function setStatus(message, isError = false) {
+  function setNotice(message, isError = false) {
     status.textContent = message;
-    status.style.color = isError ? "var(--danger)" : "";
+    status.hidden = !message;
+    status.classList.toggle("is-error", isError);
+    status.setAttribute("aria-live", isError ? "assertive" : "polite");
   }
 
   function setTarget(tab) {
-    selectedTab = tab;
     const details = supportedPageDetails(tab?.url);
+    selectedTab = details && tab?.id ? tab : null;
 
-    button.disabled = !tab?.id;
-    targetKind.textContent = details?.label || "Not ready";
-    targetKind.classList.toggle("is-muted", !details);
-    targetHost.textContent = details?.host || "";
-    targetTitle.textContent = tab?.title || (details ? "Untitled page" : "No supported page selected");
-    setStatus(details ? "Ready to save this page." : "No supported page found.");
+    button.disabled = !selectedTab;
+    button.textContent = DEFAULT_BUTTON_TEXT;
+    targetKind.hidden = !details;
+    targetKind.textContent = details?.label || "";
+    targetTitle.textContent = details ? tab.title || "無題のページ" : "ChatGPT、Claude、noteの記事を開いてください";
+    setNotice("");
   }
 
   function parseTabIdFromUrl() {
@@ -125,25 +128,39 @@
   }
 
   button.addEventListener("click", async () => {
+    if (resetButtonTimer) {
+      clearTimeout(resetButtonTimer);
+      resetButtonTimer = null;
+    }
+
     button.disabled = true;
-    setStatus("Preparing Markdown...");
+    button.textContent = "保存中...";
+    setNotice("");
 
     try {
       const tab = selectedTab?.id ? selectedTab : await findTargetTab();
       if (!tab?.id) {
-        throw new Error("No ChatGPT, Claude, or note.com tab found.");
+        throw new Error("対応ページが見つかりません。");
       }
 
       setTarget(tab);
       button.disabled = true;
-      setStatus("Preparing Markdown...");
+      button.textContent = "保存中...";
       const result = await exportFromTab(tab.id);
 
-      setStatus(`Downloaded ${result.filename}`);
+      button.textContent = "保存しました";
+      setNotice(`${result.filename} を保存しました`);
+      resetButtonTimer = window.setTimeout(() => {
+        button.textContent = DEFAULT_BUTTON_TEXT;
+        button.disabled = !selectedTab;
+      }, 1800);
     } catch (error) {
-      setStatus(error.message || "Download failed.", true);
+      button.textContent = DEFAULT_BUTTON_TEXT;
+      setNotice(error.message || "保存に失敗しました。", true);
     } finally {
-      button.disabled = !selectedTab?.id || !isSupportedChatUrl(selectedTab.url);
+      if (!resetButtonTimer) {
+        button.disabled = !selectedTab;
+      }
     }
   });
 

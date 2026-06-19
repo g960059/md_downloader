@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Markdown Downloader</title>
+    <title>Markdown保存</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -11,20 +11,19 @@
       <header class="app-header">
         <img src="../icons/icon32.png" width="32" height="32" alt="">
         <div>
-          <h1>Markdown Downloader</h1>
-          <p id="status" role="status" aria-live="polite">Checking current tab...</p>
+          <h1>Markdown保存</h1>
+          <p id="status" class="notification" role="status" aria-live="polite" aria-atomic="true" hidden></p>
         </div>
       </header>
 
-      <section class="target" aria-label="Selected page">
+      <section class="target" aria-label="保存対象">
         <div class="target__topline">
-          <span id="target-kind" class="target__kind">Not ready</span>
-          <span id="target-host" class="target__host"></span>
+          <span id="target-kind" class="target__kind" hidden></span>
         </div>
-        <p id="target-title" class="target__title">No supported page selected</p>
+        <p id="target-title" class="target__title">対応ページを開いてください</p>
       </section>
 
-      <button id="download" type="button" disabled>Download Markdown</button>
+      <button id="download" type="button" disabled>Markdownを保存</button>
     </main>
     <script src="popup.js"></script>
   </body>

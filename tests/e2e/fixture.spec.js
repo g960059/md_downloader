@@ -21,7 +21,7 @@ test("downloads Markdown from a sanitized ChatGPT conversation fixture via popup
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { filename, text } = await saveDownload(download, testInfo);
 
@@ -42,7 +42,7 @@ test("downloads Markdown from a sanitized ChatGPT conversation fixture via popup
     expect(text).not.toContain("チャットを検索");
     expect(text).not.toContain("新しいチャット");
     expect(text).not.toContain("コピーする");
-    await expect(popup.getByRole("status")).toContainText("Downloaded");
+    await expect(popup.getByRole("status")).toContainText("保存しました");
   } finally {
     await context.close();
   }
@@ -131,7 +131,7 @@ test("prefers the conversation API payload so non-rendered history is not lost",
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { text } = await saveDownload(download, testInfo);
 
@@ -168,7 +168,7 @@ test("downloads a temporary chat without a conversation id using DOM fallback", 
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { filename, text } = await saveDownload(download, testInfo);
 
@@ -205,13 +205,13 @@ test("injects scripts on demand when an existing ChatGPT tab has no exporter", a
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { text } = await saveDownload(download, testInfo);
 
     expect(text).toContain("# 古典力学と作用");
     expect(text).toContain("同じターン内の追加回答も保存します。");
-    await expect(popup.getByRole("status")).toContainText("Downloaded");
+    await expect(popup.getByRole("status")).toContainText("保存しました");
   } finally {
     await context.close();
   }
@@ -237,7 +237,7 @@ test("downloads Markdown from a sanitized Claude conversation fixture via popup"
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { filename, text } = await saveDownload(download, testInfo);
 
@@ -255,7 +255,7 @@ test("downloads Markdown from a sanitized Claude conversation fixture via popup"
     expect(text).toContain("```ts");
     expect(text).toContain("const Kd = Kd0 * Math.exp(-ldaArg);");
     expect(text).not.toContain("コピー");
-    await expect(popup.getByRole("status")).toContainText("Downloaded");
+    await expect(popup.getByRole("status")).toContainText("保存しました");
   } finally {
     await context.close();
   }
@@ -280,7 +280,7 @@ test("downloads Markdown from a sanitized note.com article fixture via popup", a
 
     const popup = await openPopup(context, extensionId);
     const downloadPromise = page.waitForEvent("download");
-    await popup.getByRole("button", { name: "Download Markdown" }).click();
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
     const download = await downloadPromise;
     const { filename, text } = await saveDownload(download, testInfo);
 
@@ -297,7 +297,7 @@ test("downloads Markdown from a sanitized note.com article fixture via popup", a
     expect(text).toContain("[![画像1](https://assets.st-note.com/production/uploads/images/example.png)](https://assets.st-note.com/production/uploads/images/example.png)");
     expect(text).not.toContain("フォローする");
     expect(text).not.toContain("スキ");
-    await expect(popup.getByRole("status")).toContainText("Downloaded");
+    await expect(popup.getByRole("status")).toContainText("保存しました");
   } finally {
     await context.close();
   }

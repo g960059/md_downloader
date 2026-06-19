@@ -5,8 +5,11 @@
   --accent-strong: #115e59;
   --border: #d8dee8;
   --button: #172033;
+  --button-disabled: #e4e8ef;
+  --button-disabled-text: #6b7482;
   --muted: #5f6b7a;
   --panel: #f7f9fc;
+  --success: #0f766e;
   --text: #172033;
   --danger: #b42318;
 }
@@ -44,12 +47,17 @@ p {
   margin: 0;
 }
 
-#status {
-  color: var(--muted);
+.notification {
+  color: var(--success);
   font-size: 12px;
-  line-height: 1.35;
+  font-weight: 650;
+  line-height: 1.4;
   margin-top: 3px;
-  min-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.notification.is-error {
+  color: var(--danger);
 }
 
 .target {
@@ -66,7 +74,6 @@ p {
   align-items: center;
   display: flex;
   gap: 8px;
-  justify-content: space-between;
   min-width: 0;
 }
 
@@ -76,33 +83,23 @@ p {
   border-radius: 999px;
   color: var(--accent-strong);
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
-  padding: 5px 7px;
-}
-
-.target__kind.is-muted {
-  background: #eef1f5;
-  border-color: #d8dee8;
-  color: var(--muted);
-}
-
-.target__host {
-  color: var(--muted);
-  font-size: 11px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 5px 8px;
 }
 
 .target__title {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--text);
+  display: -webkit-box;
   font-size: 13px;
   font-weight: 650;
   line-height: 1.35;
-  min-height: 36px;
+  max-height: 36px;
+  min-height: 18px;
+  overflow: hidden;
   overflow-wrap: anywhere;
 }
 
@@ -128,14 +125,17 @@ button:not(:disabled):hover {
 }
 
 button:disabled {
+  background: var(--button-disabled);
+  color: var(--button-disabled-text);
   cursor: default;
-  opacity: 0.55;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --border: #344052;
     --button: #d9f8f0;
+    --button-disabled: #253142;
+    --button-disabled-text: #a5afbd;
     --muted: #a5afbd;
     --panel: #151c27;
     --text: #edf2f7;
@@ -157,11 +157,5 @@ button:disabled {
     background: #123c37;
     border-color: #24675e;
     color: #9ee7d2;
-  }
-
-  .target__kind.is-muted {
-    background: #202936;
-    border-color: #344052;
-    color: var(--muted);
   }
 }

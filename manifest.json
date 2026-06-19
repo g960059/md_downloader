@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Chat Markdown Downloader",
+  "name": "Markdown保存",
   "version": "0.1.0",
-  "description": "Download the current ChatGPT, Claude, or note.com page as Markdown.",
+  "description": "ChatGPT、Claude、note.comのページをMarkdownとして保存します。",
   "permissions": [
     "scripting",
     "tabs"
@@ -20,7 +20,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Download Chat Markdown",
+    "default_title": "Markdownを保存",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
