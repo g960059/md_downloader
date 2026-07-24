@@ -22,7 +22,9 @@
     button.textContent = DEFAULT_BUTTON_TEXT;
     targetKind.hidden = !details;
     targetKind.textContent = details?.label || "";
-    targetTitle.textContent = details ? tab.title || "無題のページ" : "ChatGPT、Claude、noteの記事を開いてください";
+    targetTitle.textContent = details
+      ? tab.title || "無題のページ"
+      : "ChatGPT、Claude、note、pixiv小説を開いてください";
     setNotice("");
   }
 
@@ -49,13 +51,14 @@
       return activeTab;
     }
 
-    const [chatgptTabs, claudeTabs, noteTabs, noteSubdomainTabs] = await Promise.all([
+    const [chatgptTabs, claudeTabs, noteTabs, noteSubdomainTabs, pixivTabs] = await Promise.all([
       queryTabs({ url: "https://chatgpt.com/*" }),
       queryTabs({ url: "https://claude.ai/*" }),
       queryTabs({ url: "https://note.com/*" }),
-      queryTabs({ url: "https://*.note.com/*" })
+      queryTabs({ url: "https://*.note.com/*" }),
+      queryTabs({ url: "https://www.pixiv.net/novel/*" })
     ]);
-    return chatgptTabs[0] ?? claudeTabs[0] ?? noteTabs[0] ?? noteSubdomainTabs[0] ?? null;
+    return chatgptTabs[0] ?? claudeTabs[0] ?? noteTabs[0] ?? noteSubdomainTabs[0] ?? pixivTabs[0] ?? null;
   }
 
   function isSupportedChatUrl(url) {
@@ -70,6 +73,12 @@
       if (parsed.hostname === "claude.ai") return { label: "Claude", host: parsed.hostname };
       if (parsed.hostname === "note.com" || parsed.hostname.endsWith(".note.com")) {
         return { label: "note", host: parsed.hostname };
+      }
+      if (
+        (parsed.hostname === "pixiv.net" || parsed.hostname === "www.pixiv.net") &&
+        parsed.pathname.startsWith("/novel/")
+      ) {
+        return { label: "pixiv", host: parsed.hostname };
       }
       return null;
     } catch (_error) {
