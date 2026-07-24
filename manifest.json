@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Markdown保存",
   "version": "0.1.0",
-  "description": "ChatGPT、Claude、note.comのページをMarkdownとして保存します。",
+  "description": "ChatGPT、Claude、note.com、pixiv小説をMarkdownとして保存します。",
   "permissions": [
     "scripting",
     "tabs"
@@ -11,7 +11,8 @@
     "https://claude.ai/*",
     "https://chatgpt.com/*",
     "https://note.com/*",
-    "https://*.note.com/*"
+    "https://*.note.com/*",
+    "https://www.pixiv.net/novel/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -38,7 +39,8 @@
         "https://claude.ai/*",
         "https://chatgpt.com/*",
         "https://note.com/*",
-        "https://*.note.com/*"
+        "https://*.note.com/*",
+        "https://www.pixiv.net/novel/*"
       ],
       "js": [
         "src/markdown.js",

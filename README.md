@@ -1,6 +1,6 @@
 # Chat Markdown Downloader
 
-Chrome extension that downloads the currently open ChatGPT or Claude conversation as a Markdown file.
+Chrome extension that downloads the currently open ChatGPT or Claude conversation, note.com article, or pixiv novel as a Markdown file.
 
 For authenticated ChatGPT conversation URLs, the extension first exports from ChatGPT's conversation JSON payload so long conversations and non-rendered turns are not lost. If that API is unavailable, including temporary chats without a saved conversation ID, it falls back to the visible DOM.
 
@@ -10,7 +10,7 @@ For authenticated ChatGPT conversation URLs, the extension first exports from Ch
 2. Enable Developer mode.
 3. Choose "Load unpacked".
 4. Select this repository directory.
-5. Open a ChatGPT conversation and click the extension icon.
+5. Open a supported conversation or article and click the extension icon.
 
 ## Development
 

@@ -302,3 +302,46 @@ test("downloads Markdown from a sanitized note.com article fixture via popup", a
     await context.close();
   }
 });
+
+test("downloads Markdown from a sanitized pixiv novel fixture via popup", async ({}, testInfo) => {
+  const userDataDir = testInfo.outputPath("pixiv-chrome-profile");
+  const { context, extensionId } = await launchExtensionContext(userDataDir);
+
+  try {
+    const fixturePath = path.join(repoRoot, "tests/fixtures/pixiv-sanitized.html");
+    await context.route("https://www.pixiv.net/novel/show.php?id=28671633", async (route) => {
+      await route.fulfill({
+        path: fixturePath,
+        contentType: "text/html; charset=utf-8"
+      });
+    });
+
+    const page = await context.newPage();
+    await page.goto("https://www.pixiv.net/novel/show.php?id=28671633");
+    await expect(page.locator("#gtm-novel-work-scroll-begin-reading")).toHaveCount(1);
+
+    const popup = await openPopup(context, extensionId);
+    await expect(popup.getByText("pixiv", { exact: true })).toBeVisible();
+    const downloadPromise = page.waitForEvent("download");
+    await popup.getByRole("button", { name: "Markdownを保存" }).click();
+    const download = await downloadPromise;
+    const { filename, text } = await saveDownload(download, testInfo);
+
+    expect(filename).toMatch(/^習字編-\d{8}-\d{6}\.md$/);
+    expect(text).toContain("# 習字編");
+    expect(text).toContain("Source: https://www.pixiv.net/novel/show.php?id=28671633");
+    expect(text).toContain("Author: koto");
+    expect(text).toContain("Published: 2026-07-23T03:39:25Z");
+    expect(text).toContain("Series: 習い事は自分で選ばせて!");
+    expect(text).toContain("幼稚園くらいの時、実家から車で約5分の所に習字教室があった。");
+    expect(text).toContain("先生が\n「黙とう」と言い");
+    expect(text).toContain("109×2000＝21万8千円");
+    expect(text).not.toContain("フォローする");
+    expect(text).not.toContain("おすすめ作品");
+    expect(text).not.toContain("コメントはまだありません");
+    expect(text).not.toContain("この文章は別作品の本文");
+    await expect(popup.getByRole("status")).toContainText("保存しました");
+  } finally {
+    await context.close();
+  }
+});

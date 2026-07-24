@@ -246,6 +246,10 @@
     return hostname === "note.com" || hostname.endsWith(".note.com");
   }
 
+  function isPixivHost(hostname) {
+    return hostname === "pixiv.net" || hostname === "www.pixiv.net";
+  }
+
   function getNoteArticleTitle(doc) {
     const title =
       doc.querySelector(".o-noteContentHeader__title")?.textContent ||
@@ -279,6 +283,60 @@
       doc.querySelector("[data-name='body']") ||
       doc.querySelector("article")
     );
+  }
+
+  function getPixivNovelTitle(doc) {
+    const work = doc.querySelector("[data-ga4-label='work_content'][data-ga4-entity-id^='novel/']");
+    const title =
+      work?.querySelector("h1")?.textContent ||
+      metaContent(doc, "meta[name='twitter:title']") ||
+      metaContent(doc, "meta[property='og:title']") ||
+      doc.title ||
+      "pixiv novel";
+    return normalizeText(title).replace(/\s+-\s+pixiv\s*$/i, "").trim() || "pixiv novel";
+  }
+
+  function getPixivNovelAuthor(doc) {
+    const root = doc.querySelector("[data-ga4-label='page_root'][data-ga4-entity-id^='novel/']") || doc;
+    const authorLink = Array.from(root.querySelectorAll("main a[href*='/users/']")).find((link) =>
+      normalizeText(link.textContent || "").trim()
+    );
+    return normalizeText(authorLink?.textContent || metaContent(doc, "meta[name='author']")).trim();
+  }
+
+  function getPixivNovelPublishedAt(doc) {
+    const work = doc.querySelector("[data-ga4-label='work_content'][data-ga4-entity-id^='novel/']");
+    const datetime =
+      work?.querySelector("time[datetime]")?.getAttribute("datetime") ||
+      doc.querySelector("main time[datetime]")?.getAttribute("datetime") ||
+      metaContent(doc, "meta[property='article:published_time']");
+    return normalizeText(datetime || "").trim();
+  }
+
+  function getPixivNovelSeries(doc) {
+    const work = doc.querySelector("[data-ga4-label='work_content'][data-ga4-entity-id^='novel/']");
+    const series = work?.querySelector("a[href*='/novel/series/']")?.textContent;
+    return normalizeText(series || "").replace(/\s+#\d+\s*$/, "").trim();
+  }
+
+  function getPixivNovelBody(doc) {
+    const start = doc.querySelector("#gtm-novel-work-scroll-begin-reading");
+    const finish = doc.querySelector("#gtm-novel-work-scroll-finish-reading");
+    if (start?.parentNode && finish?.parentNode === start.parentNode) {
+      const body = doc.createElement("div");
+      for (let node = start.nextSibling; node && node !== finish; node = node.nextSibling) {
+        body.append(node.cloneNode(true));
+      }
+      if (body.querySelector(".text-count, p, img")) return body;
+    }
+
+    const textSpans = Array.from(doc.querySelectorAll("main .text-count[data-textcount]"));
+    const paragraphs = Array.from(new Set(textSpans.map((span) => span.closest("p")).filter(Boolean)));
+    if (!paragraphs.length) return null;
+
+    const body = doc.createElement("div");
+    paragraphs.forEach((paragraph) => body.append(paragraph.cloneNode(true)));
+    return body;
   }
 
   function getClaudeConversationTitle(doc, turns) {
@@ -587,6 +645,22 @@
     return `${compactMarkdown(lines.join("\n"))}\n`;
   }
 
+  function buildPixivMarkdown({ title, url, author, publishedAt, series, body }) {
+    const lines = [
+      `# ${title}`,
+      "",
+      `Source: ${url}`,
+      `Exported: ${new Date().toISOString()}`
+    ];
+
+    if (author) lines.push(`Author: ${author}`);
+    if (publishedAt) lines.push(`Published: ${publishedAt}`);
+    if (series) lines.push(`Series: ${series}`);
+
+    lines.push("", body);
+    return `${compactMarkdown(lines.join("\n"))}\n`;
+  }
+
   function exportNoteArticle(doc = document) {
     if (!isNoteHost(doc.location?.hostname || "")) {
       throw new Error("This extension only exports note.com article pages.");
@@ -608,6 +682,35 @@
       url: doc.location.href,
       author: getNoteAuthor(doc),
       publishedAt: getNotePublishedAt(doc),
+      body
+    });
+    const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
+
+    return { filename, markdown, title, body };
+  }
+
+  function exportPixivNovel(doc = document) {
+    if (!isPixivHost(doc.location?.hostname || "") || !doc.location?.pathname.startsWith("/novel/")) {
+      throw new Error("This extension only exports pixiv novel pages.");
+    }
+
+    const bodyNode = getPixivNovelBody(doc);
+    if (!bodyNode) {
+      throw new Error("No pixiv novel body was found on this page.");
+    }
+
+    const body = htmlToMarkdown(bodyNode);
+    if (!body) {
+      throw new Error("No pixiv novel content was found on this page.");
+    }
+
+    const title = getPixivNovelTitle(doc);
+    const markdown = buildPixivMarkdown({
+      title,
+      url: doc.location.href,
+      author: getPixivNovelAuthor(doc),
+      publishedAt: getPixivNovelPublishedAt(doc),
+      series: getPixivNovelSeries(doc),
       body
     });
     const filename = `${sanitizeFilenamePart(title)}-${timestampForFilename()}.md`;
@@ -645,6 +748,9 @@
     if (isNoteHost(doc.location?.hostname || "")) {
       return exportNoteArticle(doc);
     }
+    if (isPixivHost(doc.location?.hostname || "")) {
+      return exportPixivNovel(doc);
+    }
     if (doc.location?.hostname === "claude.ai") {
       return exportClaudeConversation(doc);
     }
@@ -656,12 +762,16 @@
       return exportNoteArticle(doc);
     }
 
+    if (isPixivHost(doc.location?.hostname || "")) {
+      return exportPixivNovel(doc);
+    }
+
     if (doc.location?.hostname === "claude.ai") {
       return exportClaudeConversation(doc);
     }
 
     if (doc.location?.hostname !== "chatgpt.com") {
-      throw new Error("This extension only exports ChatGPT, Claude, or note.com pages.");
+      throw new Error("This extension only exports ChatGPT, Claude, note.com, or pixiv novel pages.");
     }
 
     try {
@@ -683,6 +793,7 @@
     exportConversation,
     exportConversationAccurate,
     exportNoteArticle,
+    exportPixivNovel,
     htmlToMarkdown,
     extractTurns,
     extractClaudeTurns,
