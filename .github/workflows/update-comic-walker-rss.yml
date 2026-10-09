@@ -1,0 +1,42 @@
+name: Update KadoComi chapter RSS
+
+on:
+  schedule:
+    - cron: '17 0,4,8,12,16,20 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/update-comic-walker-rss.yml'
+      - 'scripts/update_comic_walker_rss.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: comic-walker-rss
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install scraper dependencies
+        run: pip install --disable-pip-version-check 'requests>=2.31,<3' 'beautifulsoup4>=4.12,<5'
+      - name: Refresh feed
+        run: python scripts/update_comic_walker_rss.py
+      - name: Commit RSS only if changed
+        run: |
+          git add rss/comic-walker-KC_005844_S.xml
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'rss: add new KadoComi chapter'
+            git push
+          else
+            echo 'RSS unchanged'
+          fi
