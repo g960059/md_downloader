@@ -106,6 +106,9 @@ def existing_chapters(path: Path) -> dict[str, Chapter]:
         title = item.findtext("title")
         date = item.findtext("pubDate")
         if link and title and date:
+            suffix = "｜" + TITLE
+            while title.endswith(suffix):
+                title = title[:-len(suffix)]
             out[link] = Chapter(title, link, parsedate_to_datetime(date))
     return out
 
